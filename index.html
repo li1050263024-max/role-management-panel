@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>角色管理 · 交互原型</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --blue: #3a74d6;
+    --blue-light: #4a8cf0;
+    --cyan: #3ec7e8;
+    --red: #f04b4b;
+    --text: #222;
+    --sub: #888;
+    --bg: #f5f5f5;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: radial-gradient(circle at 20% 20%, #eef3fb 0%, #dfe5ee 60%, #d3dae5 100%);
+    display: flex; align-items: center; justify-content: center; gap: 56px;
+    min-height: 100vh; overflow: hidden; color: var(--text);
+  }
+
+  /* ---------- 左侧说明 ---------- */
+  .legend { width: 280px; font-size: 13px; color: #555; line-height: 1.8; }
+  .legend h1 { font-size: 22px; color: #222; margin-bottom: 6px; }
+  .legend p.sub { color: #888; margin-bottom: 18px; }
+  .legend ol { padding-left: 18px; }
+  .legend li { margin-bottom: 6px; }
+  .legend b { color: var(--blue); font-weight: 600; }
+  .legend .reset { margin-top: 18px; border: 1px solid #c5cfdd; background: #fff; border-radius: 8px; padding: 6px 14px; cursor: pointer; color: #555; font-size: 13px; }
+  .legend .reset:hover { border-color: var(--blue); color: var(--blue); }
+  @media (max-width: 860px) { .legend { display: none; } }
+
+  /* ---------- 手机框 ---------- */
+  .phone {
+    position: relative; width: 390px; height: 844px; flex-shrink: 0;
+    border-radius: 56px; background: #111; padding: 12px;
+    box-shadow: 0 0 0 2px #2a2a2a, 0 30px 80px rgba(20, 30, 60, .35);
+  }
+  .screen {
+    position: relative; width: 100%; height: 100%; border-radius: 44px; overflow: hidden;
+    background: var(--bg); display: flex; flex-direction: column;
+  }
+  .statusbar {
+    height: 50px; padding: 0 30px 0 34px; display: flex; align-items: center; justify-content: space-between;
+    background: #fff; font-weight: 600; font-size: 16px; flex-shrink: 0;
+  }
+  .statusbar .icons { display: flex; gap: 6px; align-items: center; }
+
+  /* 导航栏 */
+  .navbar {
+    height: 48px; background: #fff; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; flex-shrink: 0; position: relative;
+  }
+  .navbar .title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 600; white-space: nowrap; }
+  .navbar .btn { background: none; border: none; cursor: pointer; font-size: 15px; color: #333; padding: 6px 4px; min-width: 44px; text-align: left; }
+  .navbar .btn.right { text-align: right; }
+  .navbar .btn.primary { color: var(--blue); font-weight: 600; }
+  .navbar .more { font-size: 20px; letter-spacing: 1px; font-weight: 700; }
+
+  /* 提示条 */
+  .tip {
+    height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+    font-size: 12.5px; color: var(--blue); flex-shrink: 0; transition: background .25s, color .25s;
+  }
+  .tip .dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; margin-right: 8px; vertical-align: middle; }
+  .tip .close { cursor: pointer; font-size: 14px; padding: 4px; }
+  .tip.mode { background: #e9f1fd; }
+  .tip.mode.danger { background: #fdecec; color: var(--red); }
+  .tip.hidden-tip { display: none; }
+
+  /* 内容 */
+  .content { flex: 1; overflow-y: auto; padding: 10px 14px 120px; position: relative; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); row-gap: 16px; }
+  .role { display: flex; flex-direction: column; align-items: center; cursor: pointer; user-select: none; position: relative; }
+  .role .avatar-wrap { position: relative; width: 58px; height: 58px; transition: transform .15s; }
+  .role:active .avatar-wrap { transform: scale(.93); }
+  .avatar {
+    width: 58px; height: 58px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.08); transition: filter .25s, opacity .25s, box-shadow .25s;
+  }
+  .avatar svg { width: 36px; height: 36px; }
+  .role .name { margin-top: 5px; font-size: 12px; color: var(--sub); max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .2s; }
+
+  /* 角标 */
+  .badge {
+    position: absolute; top: -4px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff;
+    border: 2px solid #fff; animation: pop .28s cubic-bezier(.3, 1.6, .5, 1);
+  }
+  .badge.pin { background: var(--cyan); }
+  .badge.sync { background: var(--blue-light); }
+  .badge.hide { background: #8a8f99; }
+  .badge.del { background: var(--red); }
+  .badge.edit { background: #fff; color: var(--blue); border: 1.5px solid var(--blue); width: 22px; padding: 0; }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+  /* 模式下的视觉状态 */
+  .role.selectable .avatar { box-shadow: 0 0 0 2px transparent, 0 2px 6px rgba(0,0,0,.08); }
+  .role.sel-pin .avatar { box-shadow: 0 0 0 2.5px var(--cyan); }
+  .role.sel-sync .avatar { box-shadow: 0 0 0 2.5px var(--blue-light); }
+  .role.sel-del .avatar { box-shadow: 0 0 0 2.5px var(--red); }
+  .role.is-hidden .avatar { filter: grayscale(1); opacity: .45; }
+  .role.is-hidden .name { color: #bbb; }
+  .role.selectable:not(.sel-pin):not(.sel-sync):not(.sel-del) .name { color: #999; }
+  .role.sel-pin .name, .role.sel-sync .name { color: var(--blue); }
+  .role.sel-del .name { color: var(--red); }
+  .role.removing { animation: removeOut .3s forwards; }
+  @keyframes removeOut { to { transform: scale(0); opacity: 0; } }
+  .mode-edit .role .avatar-wrap { animation: wiggle .5s ease-in-out infinite alternate; }
+  .mode-edit .role:nth-child(2n) .avatar-wrap { animation-delay: .25s; }
+  @keyframes wiggle { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
+
+  /* 主页附加信息 */
+  .summary { margin-top: 26px; display: flex; flex-direction: column; gap: 10px; }
+  .summary .card {
+    background: #fff; border-radius: 12px; padding: 12px 14px; font-size: 13px; color: #555;
+    display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+  }
+  .summary .card .k { color: #333; font-weight: 500; }
+  .summary .card .v { color: var(--sub); display: flex; align-items: center; gap: 6px; }
+  .summary .mini-list { display: flex; }
+  .summary .mini-list span { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; margin-left: -6px; }
+  .summary .arrow { color: #bbb; }
+
+  /* 底部按钮 */
+  .footer {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 0 38px; display: flex; justify-content: center;
+    background: linear-gradient(to top, var(--bg) 70%, rgba(245,245,245,0));
+  }
+  .main-btn {
+    min-width: 168px; height: 42px; border: none; border-radius: 21px; background: var(--blue); color: #fff;
+    font-size: 16px; cursor: pointer; padding: 0 28px; box-shadow: 0 6px 16px rgba(58,116,214,.3); transition: transform .12s, background .2s, opacity .2s;
+  }
+  .main-btn:active { transform: scale(.96); }
+  .main-btn.danger { background: var(--red); box-shadow: 0 6px 16px rgba(240,75,75,.3); }
+  .main-btn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+  .footer-hint { font-size: 12px; color: var(--sub); text-align: center; margin-bottom: 10px; }
+  .footer.col { flex-direction: column; align-items: center; }
+
+  .home-indicator { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: #111; z-index: 60; }
+
+  /* 遮罩 + 抽屉 */
+  .mask { position: absolute; inset: 0; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 30; }
+  .mask.show { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: absolute; left: 10px; right: 10px; bottom: 26px; z-index: 31;
+    transform: translateY(120%); transition: transform .32s cubic-bezier(.2, .9, .3, 1);
+  }
+  .sheet.show { transform: translateY(0); }
+  .sheet .group { background: #fff; border-radius: 14px; overflow: hidden; }
+  .sheet .group + .group { margin-top: 10px; }
+  .sheet .head { padding: 14px 16px 10px; text-align: center; font-size: 12.5px; color: var(--sub); border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .sheet .head .mini { width: 22px; height: 22px; border-radius: 50%; }
+  .sheet .item {
+    height: 56px; display: flex; align-items: center; justify-content: center; font-size: 17px; color: var(--blue);
+    cursor: pointer; border-bottom: 1px solid #eee; transition: background .15s;
+  }
+  .sheet .item:last-child { border-bottom: none; }
+  .sheet .item:active, .sheet .item:hover { background: #f4f6fa; }
+  .sheet .item.danger { color: var(--red); }
+  .sheet .item.cancel { font-weight: 600; }
+
+  /* 弹窗 */
+  .dialog-wrap { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .dialog {
+    width: 300px; background: #fff; border-radius: 16px; overflow: hidden; pointer-events: auto;
+    transform: scale(.9); opacity: 0; transition: transform .22s, opacity .22s;
+  }
+  .dialog-wrap.show .dialog { transform: scale(1); opacity: 1; }
+  .dialog-wrap:not(.show) .dialog { pointer-events: none; }
+  .dialog .d-title { font-size: 17px; font-weight: 600; text-align: center; padding: 20px 20px 6px; }
+  .dialog .d-body { padding: 8px 20px 18px; font-size: 14px; color: #555; text-align: center; line-height: 1.6; }
+  .dialog .d-actions { display: flex; border-top: 1px solid #eee; }
+  .dialog .d-actions button { flex: 1; height: 48px; border: none; background: none; font-size: 16px; cursor: pointer; color: #333; }
+  .dialog .d-actions button + button { border-left: 1px solid #eee; }
+  .dialog .d-actions .ok { color: var(--blue); font-weight: 600; }
+  .dialog .d-actions .ok.danger { color: var(--red); }
+
+  /* 编辑弹窗 */
+  .edit-preview { display: flex; justify-content: center; margin: 4px 0 14px; }
+  .edit-preview .avatar { width: 72px; height: 72px; }
+  .edit-preview .avatar svg { width: 44px; height: 44px; }
+  .field { text-align: left; margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+  .field input, .field textarea {
+    width: 100%; border: 1px solid #e3e6ec; border-radius: 8px; padding: 9px 10px; font-size: 14px; outline: none;
+    font-family: inherit; background: #fafbfc; resize: none; transition: border-color .2s;
+  }
+  .field input:focus, .field textarea:focus { border-color: var(--blue); background: #fff; }
+  .field .count { text-align: right; font-size: 11px; color: #bbb; margin-top: 3px; }
+  .colors { display: flex; gap: 8px; flex-wrap: wrap; }
+  .colors span { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 0 0 1px #e3e6ec; transition: box-shadow .15s; }
+  .colors span.on { box-shadow: 0 0 0 2px var(--blue); }
+
+  /* toast */
+  .toast {
+    position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%) scale(.9); z-index: 50;
+    background: rgba(30,30,30,.85); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 14px;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+  .empty { grid-column: 1 / -1; text-align: center; color: #aaa; font-size: 13px; padding: 60px 0; }
+</style>
+</head>
+<body>
+
+<div class="legend">
+  <h1>角色管理 · 交互原型</h1>
+  <p class="sub">点击右侧手机内元素进行体验</p>
+  <ol>
+    <li>点击 <b>管理角色</b> 唤起底部抽屉</li>
+    <li><b>置顶角色</b>：点击头像切换置顶，置顶后右上角出现「顶」角标并移到最前</li>
+    <li><b>同步至书籍主页</b>：按点击顺序标注 1、2、3… 顺序角标，再次点击取消并重新排序</li>
+    <li><b>编辑角色</b>：点击任意头像弹出编辑弹窗（名称 / 颜色 / 简介）</li>
+    <li><b>隐藏角色</b>：点击头像切换隐藏，隐藏后主页不再展示</li>
+    <li><b>删除角色</b>：多选后点击底部删除，二次确认后移除</li>
+    <li>主页 <b>长按头像</b> 可对单个角色快捷操作</li>
+  </ol>
+  <button class="reset" onclick="resetAll()">重置原型数据</button>
+</div>
+
+<div class="phone">
+  <div class="screen" id="screen">
+    <div class="statusbar">
+      <span>16:05</span>
+      <span class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#111"/><rect x="5" y="5" width="3" height="7" rx="1" fill="#111"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="#111"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#111"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5l2.4-2.6a3.4 3.4 0 0 0-4.8 0z" fill="#111"/><path d="M3.6 6.9a6.2 6.2 0 0 1 8.8 0l1.4-1.5a8.3 8.3 0 0 0-11.6 0z" fill="#111"/><path d="M.8 3.9a10.3 10.3 0 0 1 14.4 0L16 3A11.5 11.5 0 0 0 0 3z" fill="#111"/></svg>
+        <svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="#111" opacity=".5"/><rect x="2" y="2" width="9" height="8" rx="2" fill="#111"/><rect x="23.5" y="4" width="2" height="4" rx="1" fill="#111" opacity=".5"/></svg>
+      </span>
+    </div>
+
+    <div class="navbar" id="navbar"></div>
+    <div class="tip" id="tip"></div>
+
+    <div class="content" id="content">
+      <div class="grid" id="grid"></div>
+      <div class="summary" id="summary"></div>
+    </div>
+
+    <div class="footer" id="footer"></div>
+
+    <div class="mask" id="mask"></div>
+    <div class="sheet" id="sheet"></div>
+    <div class="dialog-wrap" id="dialogWrap"><div class="dialog" id="dialog"></div></div>
+    <div class="toast" id="toast"></div>
+    <div class="home-indicator"></div>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#f5c518', '#2fbf3a', '#ff7f1e', '#27c6c6', '#3c8ce7', '#b48be0', '#f0629a', '#7b8794'];
+const EYE = { '#f5c518': '#c879d6', '#2fbf3a': '#8a5cf0', '#ff7f1e': '#ff7f1e', '#27c6c6': '#27a3a3', '#3c8ce7': '#3c8ce7', '#b48be0': '#8a5cc0', '#f0629a': '#d64a80', '#7b8794': '#5b6574' };
+
+const INITIAL = [
+  { id: 1, name: '主持人', color: '#f5c518', intro: '负责串场与主持的角色', pinned: 1, sync: 0, hidden: false },
+  { id: 2, name: '女员工A', color: '#2fbf3a', intro: '', pinned: 2, sync: 0, hidden: false },
+  { id: 3, name: '女员工B', color: '#ff7f1e', intro: '', pinned: 3, sync: 0, hidden: false },
+  { id: 4, name: '男员工C', color: '#27c6c6', intro: '', pinned: 4, sync: 0, hidden: false },
+  { id: 5, name: '苏晚', color: '#3c8ce7', intro: '女主角，温柔而坚定', pinned: 0, sync: 0, hidden: false },
+  { id: 6, name: '陆迟渊', color: '#b48be0', intro: '男主角，外冷内热', pinned: 0, sync: 0, hidden: false },
+];
+
+const clone = o => JSON.parse(JSON.stringify(o));
+let roles = clone(INITIAL);
+let draft = null;          // 模式中的临时数据，取消时丢弃
+let mode = 'normal';       // normal | pin | sync | edit | hide | delete
+let delSel = new Set();
+let tipClosed = false;
+
+const MODES = {
+  pin:    { title: '置顶角色',       tip: '点击头像置顶 / 取消置顶，置顶角色将移到最前' },
+  sync:   { title: '同步至书籍主页', tip: '按点击顺序同步至书籍主页，角标为展示顺序' },
+  edit:   { title: '编辑角色',       tip: '点击头像编辑角色信息' },
+  hide:   { title: '隐藏角色',       tip: '点击头像隐藏 / 取消隐藏，隐藏后主页不展示' },
+  delete: { title: '删除角色',       tip: '选择需要删除的角色，删除后不可恢复', danger: true },
+};
+
+const $ = id => document.getElementById(id);
+const data = () => (draft || roles);
+
+function faceSVG(color) {
+  const eye = EYE[color] || color;
+  return `<svg viewBox="0 0 40 40">
+    <path d="M9 9h22a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H21l-5.5 5v-5H9a5 5 0 0 1-5-5V14a5 5 0 0 1 5-5z" fill="#fff"/>
+    <path d="M11.5 19.5q2.3-2.6 4.6 0" stroke="${eye}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <circle cx="25.5" cy="18.6" r="2.1" fill="${eye}"/>
+    <circle cx="29" cy="22.6" r="1" fill="${eye}" opacity=".45"/><circle cx="27" cy="23.2" r="1" fill="${eye}" opacity=".45"/>
+  </svg>`;
+}
+
+/* 排序：置顶的按置顶顺序在前；同步模式下按原顺序 */
+function sorted(list) {
+  const pinned = list.filter(r => r.pinned).sort((a, b) => a.pinned - b.pinned);
+  const rest = list.filter(r => !r.pinned);
+  return [...pinned, ...rest];
+}
+
+/* ---------- 渲染 ---------- */
+function render() {
+  const screen = $('screen');
+  screen.classList.toggle('mode-edit', mode === 'edit');
+  renderNav(); renderTip(); renderGrid(); renderSummary(); renderFooter();
+}
+
+function renderNav() {
+  const nav = $('navbar');
+  if (mode === 'normal') {
+    nav.innerHTML = `
+      <button class="btn" onclick="toast('返回上一页')"><svg width="12" height="20" viewBox="0 0 12 20"><path d="M10 2L2 10l8 8" stroke="#555" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="title">角色管理</div>
+      <span class="btn"></span>`;
+  } else {
+    const m = MODES[mode];
+    nav.innerHTML = `
+      <button class="btn" onclick="exitMode(false)">取消</button>
+      <div class="title">${m.title}</div>
+      <button class="btn right primary" onclick="exitMode(true)">完成</button>`;
+  }
+}
+
+function renderTip() {
+  const tip = $('tip');
+  tip.className = 'tip';
+  if (mode === 'normal') {
+    if (tipClosed) { tip.classList.add('hidden-tip'); return; }
+    tip.innerHTML = `<span><i class="dot"></i>长按角色头像可编辑/置顶角色</span><span class="close" onclick="tipClosed=true;renderTip()">✕</span>`;
+  } else {
+    const m = MODES[mode];
+    tip.classList.add('mode');
+    if (m.danger) tip.classList.add('danger');
+    tip.innerHTML = `<span><i class="dot"></i>${m.tip}</span>`;
+  }
+}
+
+function badgeFor(r) {
+  switch (mode) {
+    case 'normal': return r.pinned ? '<span class="badge pin">顶</span>' : '';
+    case 'pin':    return r.pinned ? '<span class="badge pin">顶</span>' : '';
+    case 'sync':   return r.sync ? `<span class="badge sync">${r.sync}</span>` : '';
+    case 'edit':   return `<span class="badge edit"><svg width="11" height="11" viewBox="0 0 12 12"><path d="M1.5 10.5l.6-2.6L8.4 1.6a1 1 0 0 1 1.4 0l.6.6a1 1 0 0 1 0 1.4L4.1 9.9z" fill="none" stroke="#3a74d6" stroke-width="1.3" stroke-linejoin="round"/></svg></span>`;
+    case 'hide':   return r.hidden ? '<span class="badge hide">隐</span>' : '';
+    case 'delete': return delSel.has(r.id) ? '<span class="badge del">✓</span>' : '';
+  }
+  return '';
+}
+
+function renderGrid() {
+  const grid = $('grid');
+  const before = captureRects();
+  let list = sorted(data());
+  if (mode === 'normal') list = list.filter(r => !r.hidden);
+
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty">${data().length ? '角色均已隐藏' : '暂无角色'}</div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(r => {
+    const cls = ['role'];
+    if (mode !== 'normal') cls.push('selectable');
+    if (mode === 'pin' && r.pinned) cls.push('sel-pin');
+    if (mode === 'sync' && r.sync) cls.push('sel-sync');
+    if (mode === 'delete' && delSel.has(r.id)) cls.push('sel-del');
+    if (mode === 'hide' && r.hidden) cls.push('is-hidden');
+    return `<div class="${cls.join(' ')}" data-id="${r.id}">
+      <div class="avatar-wrap">
+        <div class="avatar" style="background:${r.color}">${faceSVG(r.color)}</div>
+        ${badgeFor(r)}
+      </div>
+      <div class="name">${escapeHTML(r.name)}</div>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.role').forEach(el => bindRole(el, +el.dataset.id));
+  playFLIP(before);
+}
+
+function renderSummary() {
+  const box = $('summary');
+  if (mode !== 'normal') { box.innerHTML = ''; return; }
+  const synced = roles.filter(r => r.sync).sort((a, b) => a.sync - b.sync);
+  const hidden = roles.filter(r => r.hidden);
+  let html = '';
+  if (synced.length) {
+    html += `<div class="card" onclick="enterMode('sync')">
+      <span class="k">已同步至书籍主页</span>
+      <span class="v"><span class="mini-list">${synced.slice(0, 5).map(r => `<span style="background:${r.color}"></span>`).join('')}</span>${synced.length} 个 <span class="arrow">›</span></span>
+    </div>`;
+  }
+  if (hidden.length) {
+    html += `<div class="card" onclick="enterMode('hide')">
+      <span class="k">已隐藏角色</span>
+      <span class="v">${hidden.map(r => escapeHTML(r.name)).join('、')} <span class="arrow">›</span></span>
+    </div>`;
+  }
+  box.innerHTML = html;
+}
+
+function renderFooter() {
+  const f = $('footer');
+  f.className = 'footer';
+  if (mode === 'normal') {
+    f.innerHTML = `<button class="main-btn" onclick="openManageSheet()">管理角色</button>`;
+  } else if (mode === 'delete') {
+    f.innerHTML = `<button class="main-btn danger" ${delSel.size ? '' : 'disabled'} onclick="confirmDelete()">删除${delSel.size ? `（${delSel.size}）` : ''}</button>`;
+  } else {
+    let hint = '';
+    const d = data();
+    if (mode === 'pin') hint = `已置顶 ${d.filter(r => r.pinned).length} 个角色`;
+    if (mode === 'sync') hint = `已选择 ${d.filter(r => r.sync).length} 个角色同步至书籍主页`;
+    if (mode === 'hide') hint = `已隐藏 ${d.filter(r => r.hidden).length} 个角色`;
+    if (mode === 'edit') hint = `共 ${d.length} 个角色`;
+    f.classList.add('col');
+    f.innerHTML = `<div class="footer-hint">${hint}</div><button class="main-btn" onclick="exitMode(true)">完成</button>`;
+  }
+}
+
+/* ---------- FLIP 排序动画 ---------- */
+function captureRects() {
+  const map = {};
+  document.querySelectorAll('#grid .role').forEach(el => map[el.dataset.id] = el.getBoundingClientRect());
+  return map;
+}
+function playFLIP(before) {
+  document.querySelectorAll('#grid .role').forEach(el => {
+    const old = before[el.dataset.id];
+    if (!old) return;
+    const now = el.getBoundingClientRect();
+    const dx = old.left - now.left, dy = old.top - now.top;
+    if (!dx && !dy) return;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0,0)' }],
+      { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
+}
+
+/* ---------- 头像交互 ---------- */
+function bindRole(el, id) {
+  let timer = null, long = false;
+  const start = () => {
+    long = false;
+    if (mode !== 'normal') return;
+    timer = setTimeout(() => { long = true; openRoleSheet(id); }, 500);
+  };
+  const cancel = () => clearTimeout(timer);
+  el.addEventListener('pointerdown', start);
+  el.addEventListener('pointerup', cancel);
+  el.addEventListener('pointerleave', cancel);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.addEventListener('click', () => { if (!long) onRoleTap(id); });
+}
+
+function onRoleTap(id) {
+  const r = data().find(x => x.id === id);
+  switch (mode) {
+    case 'normal': toast('长按头像可快捷管理'); break;
+    case 'pin': {
+      if (r.pinned) {
+        const removed = r.pinned;
+        r.pinned = 0;
+        draft.forEach(x => { if (x.pinned > removed) x.pinned--; });
+      } else {
+        draft.forEach(x => { if (x.pinned) x.pinned++; });
+        r.pinned = 1; // 最新置顶的排在最前
+      }
+      break;
+    }
+    case 'sync': {
+      if (r.sync) {
+        const removed = r.sync;
+        r.sync = 0;
+        draft.forEach(x => { if (x.sync > removed) x.sync--; });
+      } else {
+        r.sync = Math.max(0, ...draft.map(x => x.sync)) + 1;
+      }
+      break;
+    }
+    case 'edit': openEditDialog(id); return;
+    case 'hide': r.hidden = !r.hidden; break;
+    case 'delete': delSel.has(id) ? delSel.delete(id) : delSel.add(id); break;
+  }
+  render();
+}
+
+/* ---------- 模式切换 ---------- */
+function enterMode(m) {
+  closeSheet();
+  draft = clone(roles);
+  delSel = new Set();
+  mode = m;
+  render();
+}
+function exitMode(save) {
+  if (save && draft) {
+    roles = draft;
+    const msg = { pin: '置顶设置已保存', sync: '已同步至书籍主页', edit: '编辑已保存', hide: '隐藏设置已保存', delete: '' }[mode];
+    if (msg) toast(msg);
+  }
+  draft = null; delSel = new Set(); mode = 'normal';
+  render();
+}
+
+/* ---------- 底部抽屉 ---------- */
+function openSheet(html) {
+  $('sheet').innerHTML = html;
+  $('mask').classList.add('show');
+  $('sheet').classList.add('show');
+  $('mask').onclick = closeSheet;
+}
+function closeSheet() {
+  $('mask').classList.remove('show');
+  $('sheet').classList.remove('show');
+}
+
+function openManageSheet() {
+  openSheet(`
+    <div class="group">
+      <div class="item" onclick="enterMode('pin')">置顶角色</div>
+      <div class="item" onclick="enterMode('edit')">编辑角色</div>
+      <div class="item" onclick="enterMode('sync')">同步至书籍主页</div>
+      <div class="item" onclick="enterMode('hide')">隐藏角色</div>
+      <div class="item danger" onclick="enterMode('delete')">删除角色</div>
+    </div>
+    <div class="group"><div class="item cancel" onclick="closeSheet()">取消</div></div>`);
+}
+
+/* 长按单个角色的快捷抽屉 */
+function openRoleSheet(id) {
+  const r = roles.find(x => x.id === id);
+  if (navigator.vibrate) navigator.vibrate(15);
+  openSheet(`
+    <div class="group">
+      <div class="head"><span class="mini" style="background:${r.color}"></span>${escapeHTML(r.name)}</div>
+      <div class="item" onclick="quick(${id}, 'pin')">${r.pinned ? '取消置顶' : '置顶角色'}</div>
+      <div class="item" onclick="quick(${id}, 'edit')">编辑角色</div>
+      <div class="item" onclick="quick(${id}, 'sync')">${r.sync ? '取消同步至书籍主页' : '同步至书籍主页'}</div>
+      <div class="item" onclick="quick(${id}, 'hide')">隐藏角色</div>
+      <div class="item danger" onclick="quick(${id}, 'delete')">删除角色</div>
+    </div>
+    <div class="group"><div class="item cancel" onclick="closeSheet()">取消</div></div>`);
+}
+
+function quick(id, action) {
+  closeSheet();
+  const r = roles.find(x => x.id === id);
+  if (action === 'pin') {
+    if (r.pinned) {
+      const p = r.pinned; r.pinned = 0;
+      roles.forEach(x => { if (x.pinned > p) x.pinned--; });
+      toast('已取消置顶');
+    } else {
+      roles.forEach(x => { if (x.pinned) x.pinned++; });
+      r.pinned = 1; toast('已置顶');
+    }
+    render();
+  } else if (action === 'sync') {
+    if (r.sync) {
+      const s = r.sync; r.sync = 0;
+      roles.forEach(x => { if (x.sync > s) x.sync--; });
+      toast('已取消同步');
+    } else {
+      r.sync = Math.max(0, ...roles.map(x => x.sync)) + 1; toast(`已同步，展示顺序第 ${r.sync} 位`);
+    }
+    render();
+  } else if (action === 'hide') {
+    r.hidden = true; toast('角色已隐藏'); render();
+  } else if (action === 'edit') {
+    openEditDialog(id, true);
+  } else if (action === 'delete') {
+    showDialog({
+      title: '删除角色',
+      body: `确定删除「${escapeHTML(r.name)}」吗？删除后不可恢复。`,
+      okText: '删除', danger: true,
+      onOk: () => removeRoles([id]),
+    });
+  }
+}
+
+/* ---------- 弹窗 ---------- */
+let dialogOk = null;
+function showDialog({ title, body, okText = '确定', cancelText = '取消', danger = false, onOk }) {
+  $('dialog').innerHTML = `
+    <div class="d-title">${title}</div>
+    <div class="d-body">${body}</div>
+    <div class="d-actions">
+      <button onclick="hideDialog()">${cancelText}</button>
+      <button class="ok ${danger ? 'danger' : ''}" onclick="dialogConfirm()">${okText}</button>
+    </div>`;
+  dialogOk = onOk;
+  $('mask').classList.add('show');
+  $('mask').onclick = hideDialog;
+  $('dialogWrap').classList.add('show');
+}
+function hideDialog() {
+  $('dialogWrap').classList.remove('show');
+  $('mask').classList.remove('show');
+  dialogOk = null;
+}
+function dialogConfirm() {
+  const fn = dialogOk;
+  if (fn && fn() === false) return;
+  hideDialog();
+}
+
+let editColor = null;
+function openEditDialog(id, direct = false) {
+  const src = direct ? roles : data();
+  const r = src.find(x => x.id === id);
+  editColor = r.color;
+  showDialog({
+    title: '编辑角色',
+    body: `
+      <div class="edit-preview"><div class="avatar" id="editAvatar" style="background:${r.color}">${faceSVG(r.color)}</div></div>
+      <div class="field">
+        <label>角色名称</label>
+        <input id="editName" maxlength="10" value="${escapeHTML(r.name)}" oninput="$('nameCount').textContent=this.value.length+'/10'" />
+        <div class="count" id="nameCount">${r.name.length}/10</div>
+      </div>
+      <div class="field">
+        <label>头像颜色</label>
+        <div class="colors">${COLORS.map(c => `<span style="background:${c}" class="${c === r.color ? 'on' : ''}" onclick="pickColor('${c}', this)"></span>`).join('')}</div>
+      </div>
+      <div class="field">
+        <label>角色简介</label>
+        <textarea id="editIntro" rows="3" maxlength="60" placeholder="介绍一下这个角色吧">${escapeHTML(r.intro || '')}</textarea>
+      </div>`,
+    okText: '保存',
+    onOk: () => {
+      const name = $('editName').value.trim();
+      if (!name) { toast('角色名称不能为空'); return false; }
+      r.name = name;
+      r.color = editColor;
+      r.intro = $('editIntro').value.trim();
+      render();
+      toast('角色信息已更新');
+    },
+  });
+  setTimeout(() => $('editName') && $('editName').focus(), 250);
+}
+function pickColor(c, el) {
+  editColor = c;
+  document.querySelectorAll('.colors span').forEach(s => s.classList.remove('on'));
+  el.classList.add('on');
+  const av = $('editAvatar');
+  av.style.background = c; av.innerHTML = faceSVG(c);
+}
+
+/* ---------- 删除 ---------- */
+function confirmDelete() {
+  const names = draft.filter(r => delSel.has(r.id)).map(r => `「${escapeHTML(r.name)}」`).join('');
+  showDialog({
+    title: `删除 ${delSel.size} 个角色`,
+    body: `确定删除 ${names} 吗？<br/>删除后不可恢复。`,
+    okText: '删除', danger: true,
+    onOk: () => {
+      const ids = [...delSel];
+      ids.forEach(id => document.querySelector(`.role[data-id="${id}"]`)?.classList.add('removing'));
+      setTimeout(() => {
+        draft = draft.filter(r => !delSel.has(r.id));
+        normalize(draft);
+        roles = draft;
+        toast(`已删除 ${ids.length} 个角色`);
+        draft = null; delSel = new Set(); mode = 'normal';
+        render();
+      }, 300);
+    },
+  });
+}
+function removeRoles(ids) {
+  ids.forEach(id => document.querySelector(`.role[data-id="${id}"]`)?.classList.add('removing'));
+  setTimeout(() => {
+    roles = roles.filter(r => !ids.includes(r.id));
+    normalize(roles);
+    toast('角色已删除');
+    render();
+  }, 300);
+}
+/* 删除后重排置顶序号与同步序号 */
+function normalize(list) {
+  list.filter(r => r.pinned).sort((a, b) => a.pinned - b.pinned).forEach((r, i) => r.pinned = i + 1);
+  list.filter(r => r.sync).sort((a, b) => a.sync - b.sync).forEach((r, i) => r.sync = i + 1);
+}
+
+/* ---------- 工具 ---------- */
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+}
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function resetAll() {
+  roles = clone(INITIAL); draft = null; mode = 'normal'; delSel = new Set(); tipClosed = false;
+  closeSheet(); hideDialog(); render(); toast('已重置');
+}
+
+render();
+</script>
+</body>
+</html>
