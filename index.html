@@ -105,6 +105,11 @@
   .role.sel-del .avatar { box-shadow: 0 0 0 2.5px var(--red); }
   .role.is-hidden .avatar { filter: grayscale(1); opacity: .45; }
   .role.is-hidden .name { color: #bbb; }
+  .role.hidden-entry .avatar { background: #c5cad3 !important; filter: none; opacity: 1; }
+  .role.hidden-entry .name { color: var(--sub); }
+  .role.hidden-entry .badge.hide-count {
+    background: #8a8f99; min-width: 20px; height: 20px; font-size: 11px;
+  }
   .role.selectable:not(.sel-pin):not(.sel-sync):not(.sel-del) .name { color: #999; }
   .role.sel-pin .name, .role.sel-sync .name { color: var(--blue); }
   .role.sel-del .name { color: var(--red); }
@@ -219,7 +224,7 @@
     <li><b>编辑角色</b>：点击任意头像弹出编辑弹窗（名称 / 颜色 / 简介）</li>
     <li><b>隐藏角色</b>：点击头像切换隐藏，隐藏后主页不再展示</li>
     <li><b>删除角色</b>：多选后点击底部删除，二次确认后移除</li>
-    <li>主页 <b>长按头像</b> 可对单个角色快捷操作</li>
+    <li>主页 <b>长按头像</b> 可单独编辑该角色；点「同步至书籍主页」进入整体同步界面，角标显示顺序</li>
   </ol>
   <button class="reset" onclick="resetAll()">重置原型数据</button>
 </div>
@@ -271,13 +276,12 @@ let roles = clone(INITIAL);
 let draft = null;          // 模式中的临时数据，取消时丢弃
 let mode = 'normal';       // normal | pin | sync | edit | hide | delete
 let delSel = new Set();
-let tipClosed = false;
-
 const MODES = {
   pin:    { title: '置顶角色',       tip: '点击头像置顶 / 取消置顶，置顶角色将移到最前' },
-  sync:   { title: '同步至书籍主页', tip: '按点击顺序同步至书籍主页，角标为展示顺序' },
+  sync:   { title: '同步至书籍主页', tip: '点击头像选择同步角色，右上角数字为展示顺序' },
   edit:   { title: '编辑角色',       tip: '点击头像编辑角色信息' },
-  hide:   { title: '隐藏角色',       tip: '点击头像隐藏 / 取消隐藏，隐藏后主页不展示' },
+  hide:   { title: '隐藏角色',       tip: '点击头像可取消隐藏' },
+  hidePick:{ title: '隐藏角色',      tip: '点击头像隐藏角色，隐藏后主页归入「隐藏角色」' },
   delete: { title: '删除角色',       tip: '选择需要删除的角色，删除后不可恢复', danger: true },
 };
 
@@ -328,8 +332,7 @@ function renderTip() {
   const tip = $('tip');
   tip.className = 'tip';
   if (mode === 'normal') {
-    if (tipClosed) { tip.classList.add('hidden-tip'); return; }
-    tip.innerHTML = `<span><i class="dot"></i>长按角色头像可编辑/置顶角色</span><span class="close" onclick="tipClosed=true;renderTip()">✕</span>`;
+    tip.innerHTML = `<span><i class="dot"></i>长按可单独编辑角色</span><span class="close" onclick="this.parentElement.classList.add('hidden-tip')">✕</span>`;
   } else {
     const m = MODES[mode];
     tip.classList.add('mode');
@@ -344,7 +347,8 @@ function badgeFor(r) {
     case 'pin':    return r.pinned ? '<span class="badge pin">顶</span>' : '';
     case 'sync':   return r.sync ? `<span class="badge sync">${r.sync}</span>` : '';
     case 'edit':   return `<span class="badge edit"><svg width="11" height="11" viewBox="0 0 12 12"><path d="M1.5 10.5l.6-2.6L8.4 1.6a1 1 0 0 1 1.4 0l.6.6a1 1 0 0 1 0 1.4L4.1 9.9z" fill="none" stroke="#3a74d6" stroke-width="1.3" stroke-linejoin="round"/></svg></span>`;
-    case 'hide':   return r.hidden ? '<span class="badge hide">隐</span>' : '';
+    case 'hide':   return '<span class="badge hide">隐</span>';
+    case 'hidePick': return r.hidden ? '<span class="badge hide">隐</span>' : '';
     case 'delete': return delSel.has(r.id) ? '<span class="badge del">✓</span>' : '';
   }
   return '';
@@ -354,20 +358,32 @@ function renderGrid() {
   const grid = $('grid');
   const before = captureRects();
   let list = sorted(data());
+  const hiddenCount = mode === 'normal' ? list.filter(r => r.hidden).length : 0;
   if (mode === 'normal') list = list.filter(r => !r.hidden);
+  // 隐藏角色界面：只展示已被隐藏的角色
+  if (mode === 'hide') list = list.filter(r => r.hidden);
+  // 从管理入口选择要隐藏的角色：只展示当前可见角色
+  if (mode === 'hidePick') list = list.filter(r => !r.hidden);
 
   if (!list.length) {
-    grid.innerHTML = `<div class="empty">${data().length ? '角色均已隐藏' : '暂无角色'}</div>`;
-    return;
+    const emptyMsg = {
+      hide: '暂无隐藏角色',
+      hidePick: '没有可隐藏的角色',
+    }[mode] || (hiddenCount ? '' : '暂无角色');
+    if (emptyMsg) {
+      grid.innerHTML = `<div class="empty">${emptyMsg}</div>`;
+      return;
+    }
   }
 
-  grid.innerHTML = list.map(r => {
+  let html = list.map(r => {
     const cls = ['role'];
     if (mode !== 'normal') cls.push('selectable');
     if (mode === 'pin' && r.pinned) cls.push('sel-pin');
     if (mode === 'sync' && r.sync) cls.push('sel-sync');
     if (mode === 'delete' && delSel.has(r.id)) cls.push('sel-del');
-    if (mode === 'hide' && r.hidden) cls.push('is-hidden');
+    if (mode === 'hide') cls.push('is-hidden');
+    if (mode === 'hidePick' && r.hidden) cls.push('is-hidden');
     return `<div class="${cls.join(' ')}" data-id="${r.id}">
       <div class="avatar-wrap">
         <div class="avatar" style="background:${r.color}">${faceSVG(r.color)}</div>
@@ -377,29 +393,30 @@ function renderGrid() {
     </div>`;
   }).join('');
 
-  grid.querySelectorAll('.role').forEach(el => bindRole(el, +el.dataset.id));
+  // 主页：仅展示一个「隐藏角色」入口头像，点击进入隐藏界面
+  if (mode === 'normal' && hiddenCount) {
+    html += `<div class="role hidden-entry" data-id="hidden-entry">
+      <div class="avatar-wrap">
+        <div class="avatar" style="background:#c5cad3">${faceSVG('#7b8794')}</div>
+        <span class="badge hide-count">${hiddenCount}</span>
+      </div>
+      <div class="name">隐藏角色</div>
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+  grid.querySelectorAll('.role').forEach(el => {
+    if (el.dataset.id === 'hidden-entry') {
+      el.addEventListener('click', () => enterMode('hide'));
+    } else {
+      bindRole(el, +el.dataset.id);
+    }
+  });
   playFLIP(before);
 }
 
 function renderSummary() {
-  const box = $('summary');
-  if (mode !== 'normal') { box.innerHTML = ''; return; }
-  const synced = roles.filter(r => r.sync).sort((a, b) => a.sync - b.sync);
-  const hidden = roles.filter(r => r.hidden);
-  let html = '';
-  if (synced.length) {
-    html += `<div class="card" onclick="enterMode('sync')">
-      <span class="k">已同步至书籍主页</span>
-      <span class="v"><span class="mini-list">${synced.slice(0, 5).map(r => `<span style="background:${r.color}"></span>`).join('')}</span>${synced.length} 个 <span class="arrow">›</span></span>
-    </div>`;
-  }
-  if (hidden.length) {
-    html += `<div class="card" onclick="enterMode('hide')">
-      <span class="k">已隐藏角色</span>
-      <span class="v">${hidden.map(r => escapeHTML(r.name)).join('、')} <span class="arrow">›</span></span>
-    </div>`;
-  }
-  box.innerHTML = html;
+  $('summary').innerHTML = '';
 }
 
 function renderFooter() {
@@ -414,7 +431,8 @@ function renderFooter() {
     const d = data();
     if (mode === 'pin') hint = `已置顶 ${d.filter(r => r.pinned).length} 个角色`;
     if (mode === 'sync') hint = `已选择 ${d.filter(r => r.sync).length} 个角色同步至书籍主页`;
-    if (mode === 'hide') hint = `已隐藏 ${d.filter(r => r.hidden).length} 个角色`;
+    if (mode === 'hide') hint = `共 ${d.filter(r => r.hidden).length} 个隐藏角色`;
+    if (mode === 'hidePick') hint = `已选择隐藏 ${d.filter(r => r.hidden).length} 个角色`;
     if (mode === 'edit') hint = `共 ${d.length} 个角色`;
     f.classList.add('col');
     f.innerHTML = `<div class="footer-hint">${hint}</div><button class="main-btn" onclick="exitMode(true)">完成</button>`;
@@ -445,7 +463,12 @@ function bindRole(el, id) {
   const start = () => {
     long = false;
     if (mode !== 'normal') return;
-    timer = setTimeout(() => { long = true; openRoleSheet(id); }, 500);
+    // 长按：单独编辑该角色
+    timer = setTimeout(() => {
+      long = true;
+      if (navigator.vibrate) navigator.vibrate(15);
+      openEditDialog(id, true);
+    }, 500);
   };
   const cancel = () => clearTimeout(timer);
   el.addEventListener('pointerdown', start);
@@ -458,7 +481,7 @@ function bindRole(el, id) {
 function onRoleTap(id) {
   const r = data().find(x => x.id === id);
   switch (mode) {
-    case 'normal': toast('长按头像可快捷管理'); break;
+    case 'normal': toast('长按头像可单独编辑'); break;
     case 'pin': {
       if (r.pinned) {
         const removed = r.pinned;
@@ -481,7 +504,8 @@ function onRoleTap(id) {
       break;
     }
     case 'edit': openEditDialog(id); return;
-    case 'hide': r.hidden = !r.hidden; break;
+    case 'hide': r.hidden = false; break; // 隐藏界面内点击 = 取消隐藏
+    case 'hidePick': r.hidden = true; break; // 管理入口：点击后隐藏
     case 'delete': delSel.has(id) ? delSel.delete(id) : delSel.add(id); break;
   }
   render();
@@ -498,7 +522,7 @@ function enterMode(m) {
 function exitMode(save) {
   if (save && draft) {
     roles = draft;
-    const msg = { pin: '置顶设置已保存', sync: '已同步至书籍主页', edit: '编辑已保存', hide: '隐藏设置已保存', delete: '' }[mode];
+    const msg = { pin: '置顶设置已保存', sync: '已同步至书籍主页', edit: '编辑已保存', hide: '隐藏设置已保存', hidePick: '隐藏设置已保存', delete: '' }[mode];
     if (msg) toast(msg);
   }
   draft = null; delSel = new Set(); mode = 'normal';
@@ -523,63 +547,12 @@ function openManageSheet() {
       <div class="item" onclick="enterMode('pin')">置顶角色</div>
       <div class="item" onclick="enterMode('edit')">编辑角色</div>
       <div class="item" onclick="enterMode('sync')">同步至书籍主页</div>
-      <div class="item" onclick="enterMode('hide')">隐藏角色</div>
+      <div class="item" onclick="enterMode('hidePick')">隐藏角色</div>
       <div class="item danger" onclick="enterMode('delete')">删除角色</div>
     </div>
     <div class="group"><div class="item cancel" onclick="closeSheet()">取消</div></div>`);
 }
 
-/* 长按单个角色的快捷抽屉 */
-function openRoleSheet(id) {
-  const r = roles.find(x => x.id === id);
-  if (navigator.vibrate) navigator.vibrate(15);
-  openSheet(`
-    <div class="group">
-      <div class="head"><span class="mini" style="background:${r.color}"></span>${escapeHTML(r.name)}</div>
-      <div class="item" onclick="quick(${id}, 'pin')">${r.pinned ? '取消置顶' : '置顶角色'}</div>
-      <div class="item" onclick="quick(${id}, 'edit')">编辑角色</div>
-      <div class="item" onclick="quick(${id}, 'sync')">${r.sync ? '取消同步至书籍主页' : '同步至书籍主页'}</div>
-      <div class="item" onclick="quick(${id}, 'hide')">隐藏角色</div>
-      <div class="item danger" onclick="quick(${id}, 'delete')">删除角色</div>
-    </div>
-    <div class="group"><div class="item cancel" onclick="closeSheet()">取消</div></div>`);
-}
-
-function quick(id, action) {
-  closeSheet();
-  const r = roles.find(x => x.id === id);
-  if (action === 'pin') {
-    if (r.pinned) {
-      const p = r.pinned; r.pinned = 0;
-      roles.forEach(x => { if (x.pinned > p) x.pinned--; });
-      toast('已取消置顶');
-    } else {
-      roles.forEach(x => { if (x.pinned) x.pinned++; });
-      r.pinned = 1; toast('已置顶');
-    }
-    render();
-  } else if (action === 'sync') {
-    if (r.sync) {
-      const s = r.sync; r.sync = 0;
-      roles.forEach(x => { if (x.sync > s) x.sync--; });
-      toast('已取消同步');
-    } else {
-      r.sync = Math.max(0, ...roles.map(x => x.sync)) + 1; toast(`已同步，展示顺序第 ${r.sync} 位`);
-    }
-    render();
-  } else if (action === 'hide') {
-    r.hidden = true; toast('角色已隐藏'); render();
-  } else if (action === 'edit') {
-    openEditDialog(id, true);
-  } else if (action === 'delete') {
-    showDialog({
-      title: '删除角色',
-      body: `确定删除「${escapeHTML(r.name)}」吗？删除后不可恢复。`,
-      okText: '删除', danger: true,
-      onOk: () => removeRoles([id]),
-    });
-  }
-}
 
 /* ---------- 弹窗 ---------- */
 let dialogOk = null;
@@ -699,7 +672,7 @@ function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function resetAll() {
-  roles = clone(INITIAL); draft = null; mode = 'normal'; delSel = new Set(); tipClosed = false;
+  roles = clone(INITIAL); draft = null; mode = 'normal'; delSel = new Set();
   closeSheet(); hideDialog(); render(); toast('已重置');
 }
 
